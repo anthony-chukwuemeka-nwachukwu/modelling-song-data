@@ -20,7 +20,37 @@ def process_song_file(cur, filepath):
 
 
 def process_log_file(cur, filepath):
-    pass
+    # open log file
+    df = pd.read_json(filepath, lines=True)
+
+    ts = pd.to_datetime(df['ts'], unit='ms')
+    for t in ts:
+        time_data = [t, t.hour, t.day, t.week, t.month, t.year, t.day_name()]
+        cur.execute(time_table_insert, time_data)
+
+    # load user table
+    user_df = df[["userId", "firstName", "lastName", "gender", "level"]]
+
+    # insert user records
+    for i, row in user_df.iterrows():
+        cur.execute(user_table_insert, row)
+
+    # insert songplay records
+    for index, row in df.iterrows():
+
+        # get songid and artistid from song and artist tables
+        cur.execute(song_select, (row.song, row.artist, row.length))
+        results = cur.fetchone()
+
+        if results:
+            songid, artistid = results
+        else:
+            songid, artistid = None, None
+
+        # insert songplay record
+        songplay_data = (
+        pd.Timestamp.now(), row.ts, row.userId, row.level, songid, artistid, row.sessionId, row.location, row.userAgent)
+        cur.execute(songplay_table_insert, songplay_data)
 
 
 def process_data(cur, conn, filepath, func):
